@@ -1,4 +1,4 @@
-name: Java CI with Gradle
+name: CI-CD
 
 on:
   push:
@@ -6,27 +6,41 @@ on:
   pull_request:
     branches: [ "main" ]
 
+env:
+  IMAGE: ghcr.io/ngocdien13/java-app
+
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: write
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up JDK 11
+    - name: Set up JDK
       uses: actions/setup-java@v4
       with:
-        java-version: '11'
+        java-version: '11'      # giữ đúng phiên bản đã làm pipeline xanh
         distribution: 'temurin'
         cache: gradle
 
     - name: Make gradlew executable
       run: chmod +x gradlew
 
-    - name: Build with Gradle Wrapper
+    - name: Build with Gradle
       run: ./gradlew build
 
     - name: Build Docker image
-      run: docker build -t java-app .
+      run: docker build -t $IMAGE:${{ github.sha }} -t $IMAGE:latest .
+
+    - name: Log in to GHCR
+      if: github.event_name == 'push'
+      run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+    - name: Push Docker image
+      if: github.event_name == 'push'
+      run: |
+        docker push $IMAGE:${{ github.sha }}
+        docker push $IMAGE:latest
